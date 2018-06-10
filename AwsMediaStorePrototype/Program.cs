@@ -3,7 +3,12 @@ using Amazon.MediaStoreData.Model;
 using Amazon.Runtime;
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
+using Amazon;
+using Amazon.IdentityManagement.Model;
+using Amazon.MediaStore;
+using Amazon.MediaStore.Model;
 
 namespace AwsMediaStorePrototype
 {
@@ -11,59 +16,182 @@ namespace AwsMediaStorePrototype
     {
         private static async Task Main(string[] args)
         {
-            var credentials = new BasicAWSCredentials("AKIAJ3MNQL3LXNADQWAA", "fgr1QZQcxQ381wMhL49YrOX9eO+8+MyThTv1axJE");
-            var config = new AmazonMediaStoreDataConfig
+            var credentials = new BasicAWSCredentials("CENSORED!", "CENSORED!");
+
+            using (var client = new AmazonMediaStoreClient(credentials, RegionEndpoint.EUCentral1))
+            using (var storeDataClient = await CreateStoreDataClientAsync(client: client, containerName: "test", credentials: credentials))
             {
-                ServiceURL = "https://qdzszkjdcpfevy.data.mediastore.eu-central-1.amazonaws.com"
-            };
+                var user = await CreateIamUserAsync(credentials, "zero");
+                await DeleteIamUserAsync(credentials, "zero");
 
-            using (var storeDataClient = new AmazonMediaStoreDataClient(credentials, config))
-            {
-
-                var putRequest = new PutObjectRequest();
-
-                using (var sr = new StreamReader(@"e:\big_buck_bunny.mp4"))
-                {
-                    //putRequest.Body = sr.BaseStream;
-                    //putRequest.Path = "id2/new.mp4";
-                    //var response =
-                    //    storeDataClient.PutObjectAsync(putRequest);
-
-                    //Console.WriteLine(response.Result.HttpStatusCode);
-                }
+                await DeleteObjectFromContainerAsync(storeDataClient, "id3/sample.mp4");
+                await PutObjectToContainerAsync(storeDataClient, "id3/sample.mp4");
 
             }
-
-            Console.WriteLine("Guest works start");
-
-            credentials = new BasicAWSCredentials("AKIAJABNRP4XHNM3I7JA", "QqtYmQdxZyeaTw1FcVq15qrz7nl8m6dTI6q5zbee");
-            config = new AmazonMediaStoreDataConfig
-            {
-                ServiceURL = "https://qdzszkjdcpfevy.data.mediastore.eu-central-1.amazonaws.com"
-            };
-
-            using (var storeDataClient = new AmazonMediaStoreDataClient(credentials, config))
-            {
-
-                var request = new GetObjectRequest
-                {
-                    Path = "id2/new.mp4"
-                };
-
-                try
-                {
-                    var response = await storeDataClient.GetObjectAsync(request);
-                    Console.WriteLine(response.StatusCode);
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine(e.Message);
-                }
-
-            }
-
 
             Console.ReadKey();
+        }
+
+        private static async Task<AmazonMediaStoreDataClient> CreateStoreDataClientAsync(AmazonMediaStoreClient client, string containerName, BasicAWSCredentials credentials)
+        {
+            var request = new ListContainersRequest();
+            var containers = await client.ListContainersAsync(request);
+            var container = containers.Containers.SingleOrDefault(c => c.Name == containerName);
+            var config = new AmazonMediaStoreDataConfig
+            {
+                ServiceURL = container.Endpoint
+            };
+            return new AmazonMediaStoreDataClient(credentials, config);
+        }
+
+        private async Task GetObjectAsync(AmazonMediaStoreDataClient storeDataClient, string path)
+        {
+            var request = new GetObjectRequest
+            {
+                Path = path
+            };
+
+            try
+            {
+                var response = await storeDataClient.GetObjectAsync(request);
+                Console.WriteLine($"Get file from AWS with code {response.StatusCode}");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Something goes wrong when getting item from AWS: {e.Message}");
+            }
+        }
+
+        private static async Task PutObjectToContainerAsync(AmazonMediaStoreDataClient storeDataClient, string path)
+        {
+            var putRequest = new PutObjectRequest();
+
+            using (var sr = new StreamReader("./SampleVideo/big_buck_bunny.mp4"))
+            {
+                putRequest.Body = sr.BaseStream;
+                putRequest.Path = path;
+                var response = await 
+                    storeDataClient.PutObjectAsync(putRequest);
+
+                Console.WriteLine($"File was sent to AWS with status {response.HttpStatusCode}");
+            }
+        }
+
+        private static async Task DeleteObjectFromContainerAsync(AmazonMediaStoreDataClient storeDataClient, string path)
+        {
+            var deleteRequest = new DeleteObjectRequest {Path = path};
+            try
+            {
+                var result = await storeDataClient.DeleteObjectAsync(deleteRequest);
+                Console.WriteLine($"File was deleted from AWS with status {result.HttpStatusCode}");
+            }
+            catch (Amazon.MediaStoreData.Model.ObjectNotFoundException ex)
+            {
+                Console.WriteLine($"File was not found in container ({ex.Message})");
+                
+            }
+        }
+
+        /// <summary>
+        /// creating container take several minutes!
+        /// </summary>
+        /// <param name="client"></param>
+        /// <param name="name"></param>
+        /// <returns></returns>
+        private static async Task<Container> CreateContainerAsync(AmazonMediaStoreClient client, string name)
+        {
+            var request = new CreateContainerRequest {ContainerName = name};
+            Console.WriteLine($"Creating container {name}...");
+            try
+            {
+                var response = await client.CreateContainerAsync(request);
+                Console.WriteLine($"Container {name} was created with status code {response.HttpStatusCode}");
+                return response.Container;
+            }
+            catch (Exception)
+            {
+
+                return null;
+            }
+        }
+
+        private static async Task DeleteContainerAsync(AmazonMediaStoreClient client, string name)
+        {
+            var request = new DeleteContainerRequest { ContainerName = name };
+            Console.WriteLine($"Deleteing container {name}...");
+            try
+            {
+                var response = await client.DeleteContainerAsync(request);
+                Console.WriteLine($"Container {name} was created with status code {response.HttpStatusCode}");
+            }
+            catch (ContainerInUseException ex)
+            {
+                Console.WriteLine($"Container is in use ({ex.Message})");
+            }
+            catch (ObjectNotFoundException ex)
+            {
+                Console.WriteLine($"Container was not found ({ex.Message})");
+            }
+            
+        }
+
+        private static async Task PutContainerPolicyAsync(AmazonMediaStoreClient client, string containerName, string policy)
+        {
+            var request = new PutContainerPolicyRequest
+            {
+                ContainerName = containerName,
+                Policy = policy
+            };
+            var response = await client.PutContainerPolicyAsync(request);
+            Console.WriteLine($"Policy for container {containerName} was updated with status code {response.HttpStatusCode}");
+        }
+
+
+        /// <summary>
+        /// На данный момент не ясно почему метод падает с <see cref="PolicyNotFoundException"/>
+        /// </summary>
+        /// <param name="client"></param>
+        /// <param name="containerName"></param>
+        /// <returns></returns>
+        private static async Task<string> GetContainerPolicyAsync(AmazonMediaStoreClient client, string containerName)
+        {
+            var request = new GetContainerPolicyRequest {ContainerName = containerName};
+
+            try
+            {
+                var response = await client.GetContainerPolicyAsync(request);
+                Console.WriteLine($"Policy from container {containerName} was retrived with status code {response.HttpStatusCode}");
+                return response.Policy;
+            }
+            catch (PolicyNotFoundException ex)
+            {
+                Console.WriteLine($"Policy was not found {ex.Message}");
+                return String.Empty;
+            }
+        }
+
+
+        private static async Task<User> CreateIamUserAsync(AWSCredentials credentials, string userName)
+        {
+            using (var client = new Amazon.IdentityManagement.AmazonIdentityManagementServiceClient(credentials,
+                RegionEndpoint.EUCentral1))
+            {
+                var request = new CreateUserRequest(userName);
+                var response = await client.CreateUserAsync(request);
+                Console.WriteLine($"User {userName} was created.");
+                return response.User;
+            }
+        }
+
+        private static async Task DeleteIamUserAsync(AWSCredentials credentials, string userName)
+        {
+            using (var client = new Amazon.IdentityManagement.AmazonIdentityManagementServiceClient(credentials,
+                RegionEndpoint.EUCentral1))
+            {
+                var request = new DeleteUserRequest(userName);
+                await client.DeleteUserAsync(request);
+                Console.WriteLine($"User {userName} was deleted.");
+            }
         }
     }
 }

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -10,8 +10,19 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AWSSDK.IdentityManagement" Version="3.3.6.4" />
     <PackageReference Include="AWSSDK.MediaStore" Version="3.3.1.6" />
     <PackageReference Include="AWSSDK.MediaStoreData" Version="3.3.0.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="SampleVideo\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="SampleVideo\big_buck_bunny.mp4">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
