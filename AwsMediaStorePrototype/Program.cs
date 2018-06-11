@@ -16,16 +16,17 @@ namespace AwsMediaStorePrototype
     {
         private static async Task Main(string[] args)
         {
-            var credentials = new BasicAWSCredentials("CENSORED!", "CENSORED!");
+            var credentials = new BasicAWSCredentials("CENSORED", "CENSORED");
 
             using (var client = new AmazonMediaStoreClient(credentials, RegionEndpoint.EUCentral1))
             using (var storeDataClient = await CreateStoreDataClientAsync(client: client, containerName: "test", credentials: credentials))
             {
-                var user = await CreateIamUserAsync(credentials, "zero");
-                await DeleteIamUserAsync(credentials, "zero");
+                //var user = await CreateIamUserAsync(credentials, "zero");
+                //await DeleteIamUserAsync(credentials, "zero");
+                //await DeleteObjectFromContainerAsync(storeDataClient, "id3/sample.mp4");
 
-                await DeleteObjectFromContainerAsync(storeDataClient, "id3/sample.mp4");
                 await PutObjectToContainerAsync(storeDataClient, "id3/sample.mp4");
+                var stream = await GetObjectAsync(storeDataClient, "id3/sample.mp4");
 
             }
 
@@ -44,7 +45,7 @@ namespace AwsMediaStorePrototype
             return new AmazonMediaStoreDataClient(credentials, config);
         }
 
-        private async Task GetObjectAsync(AmazonMediaStoreDataClient storeDataClient, string path)
+        private static async Task<Stream> GetObjectAsync(AmazonMediaStoreDataClient storeDataClient, string path)
         {
             var request = new GetObjectRequest
             {
@@ -55,11 +56,14 @@ namespace AwsMediaStorePrototype
             {
                 var response = await storeDataClient.GetObjectAsync(request);
                 Console.WriteLine($"Get file from AWS with code {response.StatusCode}");
+                return response.Body;
             }
             catch (Exception e)
             {
                 Console.WriteLine($"Something goes wrong when getting item from AWS: {e.Message}");
             }
+
+            return null;
         }
 
         private static async Task PutObjectToContainerAsync(AmazonMediaStoreDataClient storeDataClient, string path)
