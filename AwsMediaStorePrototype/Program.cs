@@ -16,7 +16,7 @@ namespace AwsMediaStorePrototype
     {
         private static async Task Main(string[] args)
         {
-            var credentials = new BasicAWSCredentials("CENSORED", "CENSORED");
+            var credentials = new BasicAWSCredentials("censored", "censored");
 
             using (var client = new AmazonMediaStoreClient(credentials, RegionEndpoint.EUCentral1))
             using (var storeDataClient = await CreateStoreDataClientAsync(client: client, containerName: "test", credentials: credentials))
@@ -25,8 +25,9 @@ namespace AwsMediaStorePrototype
                 //await DeleteIamUserAsync(credentials, "zero");
                 //await DeleteObjectFromContainerAsync(storeDataClient, "id3/sample.mp4");
 
-                await PutObjectToContainerAsync(storeDataClient, "id3/sample.mp4");
-                var stream = await GetObjectAsync(storeDataClient, "id3/sample.mp4");
+                var t = await GetContainerPolicyAsync(client, "test");
+                //await PutObjectToContainerAsync(storeDataClient, "path2/sample.mp4");
+                //var stream = await GetObjectAsync(storeDataClient, "path1/sample.mp4");
 
             }
 
@@ -35,12 +36,12 @@ namespace AwsMediaStorePrototype
 
         private static async Task<AmazonMediaStoreDataClient> CreateStoreDataClientAsync(AmazonMediaStoreClient client, string containerName, BasicAWSCredentials credentials)
         {
-            var request = new ListContainersRequest();
-            var containers = await client.ListContainersAsync(request);
-            var container = containers.Containers.SingleOrDefault(c => c.Name == containerName);
+            //var request = new ListContainersRequest();
+            //var containers = await client.ListContainersAsync(request);
+            //var container = containers.Containers.SingleOrDefault(c => c.Name == containerName);
             var config = new AmazonMediaStoreDataConfig
             {
-                ServiceURL = container.Endpoint
+                ServiceURL = "https://qdzszkjdcpfevy.data.mediastore.eu-central-1.amazonaws.com"
             };
             return new AmazonMediaStoreDataClient(credentials, config);
         }
@@ -151,12 +152,6 @@ namespace AwsMediaStorePrototype
         }
 
 
-        /// <summary>
-        /// На данный момент не ясно почему метод падает с <see cref="PolicyNotFoundException"/>
-        /// </summary>
-        /// <param name="client"></param>
-        /// <param name="containerName"></param>
-        /// <returns></returns>
         private static async Task<string> GetContainerPolicyAsync(AmazonMediaStoreClient client, string containerName)
         {
             var request = new GetContainerPolicyRequest {ContainerName = containerName};
@@ -183,6 +178,18 @@ namespace AwsMediaStorePrototype
                 var request = new CreateUserRequest(userName);
                 var response = await client.CreateUserAsync(request);
                 Console.WriteLine($"User {userName} was created.");
+
+
+                //create creds for user
+                var createKeyRequest = new CreateAccessKeyRequest { UserName = response.User.UserName };
+                var accessKeyResponse = await client.CreateAccessKeyAsync(createKeyRequest);
+                //add policy to user (demo)
+                var attachUserPolicyRequest = new AttachUserPolicyRequest();
+                attachUserPolicyRequest.UserName = userName;
+                attachUserPolicyRequest.PolicyArn = "arn:aws:iam::aws:policy/AWSElementalMediaStoreFullAccess";
+                await client.AttachUserPolicyAsync(attachUserPolicyRequest);
+
+
                 return response.User;
             }
         }
