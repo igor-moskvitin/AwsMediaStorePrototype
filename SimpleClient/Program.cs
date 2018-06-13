@@ -75,7 +75,7 @@ namespace SimpleClient
             using (var client = new AmazonMediaStoreClient(credentials, RegionEndpoint.EUCentral1))
             using (var storeDataClient = await CreateStoreDataClientAsync(client: client, containerName: "test", credentials: credentials))
             {
-                await PutObjectToContainerAsync(storeDataClient, "path2/sample.mp4");
+                await PutObjectToContainerAsync(storeDataClient, creds.DirctoryPath + "/sample.mp4");
             }
         }
 
@@ -91,7 +91,7 @@ namespace SimpleClient
             using (var client = new AmazonMediaStoreClient(credentials, RegionEndpoint.EUCentral1))
             using (var storeDataClient = await CreateStoreDataClientAsync(client: client, containerName: "test", credentials: credentials))
             {
-                await GetObjectAsync(storeDataClient, "path2/sample.mp4");
+                await GetObjectAsync(storeDataClient, creds.DirctoryPath + "/sample.mp4");
             }
         }
 
