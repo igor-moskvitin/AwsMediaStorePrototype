@@ -1,14 +1,12 @@
-﻿using Amazon.MediaStoreData;
-using Amazon.MediaStoreData.Model;
-using Amazon.Runtime;
-using System;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
-using Amazon;
+﻿using Amazon;
 using Amazon.IdentityManagement.Model;
-using Amazon.MediaStore;
-using Amazon.MediaStore.Model;
+using Amazon.Runtime;
+using Amazon.S3;
+using Amazon.S3.Model;
+using Amazon.SecurityToken;
+using Amazon.SecurityToken.Model;
+using System;
+using System.Threading.Tasks;
 
 namespace AwsMediaStorePrototype
 {
@@ -18,155 +16,56 @@ namespace AwsMediaStorePrototype
         {
             var credentials = new BasicAWSCredentials("censored", "censored");
 
-            using (var client = new AmazonMediaStoreClient(credentials, RegionEndpoint.EUCentral1))
-            using (var storeDataClient = await CreateStoreDataClientAsync(client: client, containerName: "test", credentials: credentials))
-            {
-                //var user = await CreateIamUserAsync(credentials, "zero");
-                //await DeleteIamUserAsync(credentials, "zero");
-                //await DeleteObjectFromContainerAsync(storeDataClient, "id3/sample.mp4");
+            var client = new AmazonSecurityTokenServiceClient(credentials);
 
-                var t = await GetContainerPolicyAsync(client, "test");
-                //await PutObjectToContainerAsync(storeDataClient, "path2/sample.mp4");
-                //var stream = await GetObjectAsync(storeDataClient, "path1/sample.mp4");
+            var request = new GetSessionTokenRequest {DurationSeconds = 900};
+            var response = await client.GetSessionTokenAsync(request);
 
-            }
+            Console.WriteLine(response.Credentials.AccessKeyId);
+            Console.WriteLine(response.Credentials.SecretAccessKey);
+
+
+            var credentials2 = response.Credentials;
+
+            var client2 = new AmazonSecurityTokenServiceClient(credentials2);
+
+            var req = new AssumeRoleRequest();
+            req.DurationSeconds = 900;
+            req.RoleArn = "arn:aws:s3:::my-test-bucket-coolrocket";
+            req.RoleSessionName = "user1";
+
+            //var x = await client2.AssumeRoleAsync(req);
+
+
+            
+            var s3client = new AmazonS3Client(response.Credentials, RegionEndpoint.EUCentral1);
+
+
+            
+
+            var r = new GetObjectRequest();
+            r.BucketName = "my-test-bucket-coolrocket";
+            r.Key = "user1/big_buck_bunny.mp4";
+            //r.Path = "user1/big_buck_bunny.mp4";
+
+
+            var temp = await s3client.GetObjectAsync(r);
+            
+
+            //using (var client = new AmazonMediaStoreClient(credentials, RegionEndpoint.EUCentral1))
+            //using (var storeDataClient = await CreateStoreDataClientAsync(client: client, containerName: "test", credentials: credentials))
+            //{
+            //    //var user = await CreateIamUserAsync(credentials, "zero");
+            //    //await DeleteIamUserAsync(credentials, "zero");
+            //    //await DeleteObjectFromContainerAsync(storeDataClient, "id3/sample.mp4");
+
+            //    var t = await GetContainerPolicyAsync(client, "test");
+            //    //await PutObjectToContainerAsync(storeDataClient, "path2/sample.mp4");
+            //    //var stream = await GetObjectAsync(storeDataClient, "path1/sample.mp4");
+
+            //}
 
             Console.ReadKey();
-        }
-
-        private static async Task<AmazonMediaStoreDataClient> CreateStoreDataClientAsync(AmazonMediaStoreClient client, string containerName, BasicAWSCredentials credentials)
-        {
-            //var request = new ListContainersRequest();
-            //var containers = await client.ListContainersAsync(request);
-            //var container = containers.Containers.SingleOrDefault(c => c.Name == containerName);
-            var config = new AmazonMediaStoreDataConfig
-            {
-                ServiceURL = "https://qdzszkjdcpfevy.data.mediastore.eu-central-1.amazonaws.com"
-            };
-            return new AmazonMediaStoreDataClient(credentials, config);
-        }
-
-        private static async Task<Stream> GetObjectAsync(AmazonMediaStoreDataClient storeDataClient, string path)
-        {
-            var request = new GetObjectRequest
-            {
-                Path = path
-            };
-
-            try
-            {
-                var response = await storeDataClient.GetObjectAsync(request);
-                Console.WriteLine($"Get file from AWS with code {response.StatusCode}");
-                return response.Body;
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine($"Something goes wrong when getting item from AWS: {e.Message}");
-            }
-
-            return null;
-        }
-
-        private static async Task PutObjectToContainerAsync(AmazonMediaStoreDataClient storeDataClient, string path)
-        {
-            var putRequest = new PutObjectRequest();
-
-            using (var sr = new StreamReader("./SampleVideo/big_buck_bunny.mp4"))
-            {
-                putRequest.Body = sr.BaseStream;
-                putRequest.Path = path;
-                var response = await 
-                    storeDataClient.PutObjectAsync(putRequest);
-
-                Console.WriteLine($"File was sent to AWS with status {response.HttpStatusCode}");
-            }
-        }
-
-        private static async Task DeleteObjectFromContainerAsync(AmazonMediaStoreDataClient storeDataClient, string path)
-        {
-            var deleteRequest = new DeleteObjectRequest {Path = path};
-            try
-            {
-                var result = await storeDataClient.DeleteObjectAsync(deleteRequest);
-                Console.WriteLine($"File was deleted from AWS with status {result.HttpStatusCode}");
-            }
-            catch (Amazon.MediaStoreData.Model.ObjectNotFoundException ex)
-            {
-                Console.WriteLine($"File was not found in container ({ex.Message})");
-                
-            }
-        }
-
-        /// <summary>
-        /// creating container take several minutes!
-        /// </summary>
-        /// <param name="client"></param>
-        /// <param name="name"></param>
-        /// <returns></returns>
-        private static async Task<Container> CreateContainerAsync(AmazonMediaStoreClient client, string name)
-        {
-            var request = new CreateContainerRequest {ContainerName = name};
-            Console.WriteLine($"Creating container {name}...");
-            try
-            {
-                var response = await client.CreateContainerAsync(request);
-                Console.WriteLine($"Container {name} was created with status code {response.HttpStatusCode}");
-                return response.Container;
-            }
-            catch (Exception)
-            {
-
-                return null;
-            }
-        }
-
-        private static async Task DeleteContainerAsync(AmazonMediaStoreClient client, string name)
-        {
-            var request = new DeleteContainerRequest { ContainerName = name };
-            Console.WriteLine($"Deleteing container {name}...");
-            try
-            {
-                var response = await client.DeleteContainerAsync(request);
-                Console.WriteLine($"Container {name} was created with status code {response.HttpStatusCode}");
-            }
-            catch (ContainerInUseException ex)
-            {
-                Console.WriteLine($"Container is in use ({ex.Message})");
-            }
-            catch (ObjectNotFoundException ex)
-            {
-                Console.WriteLine($"Container was not found ({ex.Message})");
-            }
-            
-        }
-
-        private static async Task PutContainerPolicyAsync(AmazonMediaStoreClient client, string containerName, string policy)
-        {
-            var request = new PutContainerPolicyRequest
-            {
-                ContainerName = containerName,
-                Policy = policy
-            };
-            var response = await client.PutContainerPolicyAsync(request);
-            Console.WriteLine($"Policy for container {containerName} was updated with status code {response.HttpStatusCode}");
-        }
-
-
-        private static async Task<string> GetContainerPolicyAsync(AmazonMediaStoreClient client, string containerName)
-        {
-            var request = new GetContainerPolicyRequest {ContainerName = containerName};
-
-            try
-            {
-                var response = await client.GetContainerPolicyAsync(request);
-                Console.WriteLine($"Policy from container {containerName} was retrived with status code {response.HttpStatusCode}");
-                return response.Policy;
-            }
-            catch (PolicyNotFoundException ex)
-            {
-                Console.WriteLine($"Policy was not found {ex.Message}");
-                return String.Empty;
-            }
         }
 
 

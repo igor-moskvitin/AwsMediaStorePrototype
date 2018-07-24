@@ -10,9 +10,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AWSSDK.IdentityManagement" Version="3.3.6.4" />
-    <PackageReference Include="AWSSDK.MediaStore" Version="3.3.1.6" />
-    <PackageReference Include="AWSSDK.MediaStoreData" Version="3.3.0.7" />
+    <PackageReference Include="AWSSDK.IdentityManagement" Version="3.3.6.6" />
+    <PackageReference Include="AWSSDK.MediaStore" Version="3.3.1.8" />
+    <PackageReference Include="AWSSDK.MediaStoreData" Version="3.3.0.9" />
+    <PackageReference Include="AWSSDK.S3" Version="3.3.18.5" />
+    <PackageReference Include="AWSSDK.SecurityToken" Version="3.3.4.6" />
   </ItemGroup>
 
   <ItemGroup>
